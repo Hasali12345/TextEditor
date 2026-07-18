@@ -35,28 +35,28 @@ fun EditorScreen(
     val fileManager = remember { FileManager(context) }
 
     // ===== STATE =====
-    var text by remember { mutableStateOf("") }
-    var currentFileName by remember { mutableStateOf("Untitled.txt") }
-    var currentUri by remember { mutableStateOf<Uri?>(null) }
-    var showSearch by remember { mutableStateOf(false) }
-    var searchText by remember { mutableStateOf("") }
-    var replaceText by remember { mutableStateOf("") }
+    val text = remember { mutableStateOf("") }
+    val currentFileName = remember { mutableStateOf("Untitled.txt") }
+    val currentUri = remember { mutableStateOf<Uri?>(null) }
+    val showSearch = remember { mutableStateOf(false) }
+    val searchText = remember { mutableStateOf("") }
+    val replaceText = remember { mutableStateOf("") }
 
     // Navigation state
-    var showVersions by remember { mutableStateOf(false) }
-    var showSettings by remember { mutableStateOf(false) }
+    val showVersions = remember { mutableStateOf(false) }
+    val showSettings = remember { mutableStateOf(false) }
 
     // Settings state
-    var isReadOnly by remember { mutableStateOf(settingsManager.isReadOnlyEnabled()) }
-    var isWordWrap by remember { mutableStateOf(settingsManager.isWordWrapEnabled()) }
-    var fontSize by remember { mutableIntStateOf(settingsManager.getFontSize()) }
+    val isReadOnly = remember { mutableStateOf(settingsManager.isReadOnlyEnabled()) }
+    val isWordWrap = remember { mutableStateOf(settingsManager.isWordWrapEnabled()) }
+    val fontSize = remember { mutableIntStateOf(settingsManager.getFontSize()) }
 
     // ===== REFRESH SETTINGS ON BACK =====
-    LaunchedEffect(showSettings) {
-        if (!showSettings) {
-            isReadOnly = settingsManager.isReadOnlyEnabled()
-            isWordWrap = settingsManager.isWordWrapEnabled()
-            fontSize = settingsManager.getFontSize()
+    LaunchedEffect(showSettings.value) {
+        if (!showSettings.value) {
+            isReadOnly.value = settingsManager.isReadOnlyEnabled()
+            isWordWrap.value = settingsManager.isWordWrapEnabled()
+            fontSize.intValue = settingsManager.getFontSize()
         }
     }
 
@@ -66,10 +66,10 @@ fun EditorScreen(
     ) { uri: Uri? ->
         uri?.let {
             val content = fileManager.readFile(it)
-            text = content
-            currentFileName = fileManager.getFileName(it)
-            currentUri = it
-            Toast.makeText(context, "✅ Opened: $currentFileName", Toast.LENGTH_LONG).show()
+            text.value = content
+            currentFileName.value = fileManager.getFileName(it)
+            currentUri.value = it
+            Toast.makeText(context, "✅ Opened: ${currentFileName.value}", Toast.LENGTH_LONG).show()
         }
     }
 
@@ -77,19 +77,19 @@ fun EditorScreen(
         contract = ActivityResultContracts.CreateDocument("*/*")
     ) { uri: Uri? ->
         uri?.let {
-            fileManager.writeFile(it, text)
-            currentFileName = fileManager.getFileName(it)
-            currentUri = it
-            dbHelper.insertFile(currentFileName, text)
-            Toast.makeText(context, "✅ Saved: $currentFileName", Toast.LENGTH_LONG).show()
+            fileManager.writeFile(it, text.value)
+            currentFileName.value = fileManager.getFileName(it)
+            currentUri.value = it
+            dbHelper.insertFile(currentFileName.value, text.value)
+            Toast.makeText(context, "✅ Saved: ${currentFileName.value}", Toast.LENGTH_LONG).show()
         }
     }
 
     // ===== UNDO/REDO =====
     fun performUndo() {
-        val previousText = editorManager.undo(text)
+        val previousText = editorManager.undo(text.value)
         if (previousText != null) {
-            text = previousText
+            text.value = previousText
         } else {
             Toast.makeText(context, "Nothing to undo", Toast.LENGTH_SHORT).show()
         }
@@ -98,7 +98,7 @@ fun EditorScreen(
     fun performRedo() {
         val nextText = editorManager.redo()
         if (nextText != null) {
-            text = nextText
+            text.value = nextText
         } else {
             Toast.makeText(context, "Nothing to redo", Toast.LENGTH_SHORT).show()
         }
@@ -106,8 +106,8 @@ fun EditorScreen(
 
     // ===== REPLACE =====
     fun performReplaceAll() {
-        if (searchText.isNotEmpty() && text.contains(searchText)) {
-            text = editorManager.replaceText(text, searchText, replaceText)
+        if (searchText.value.isNotEmpty() && text.value.contains(searchText.value)) {
+            text.value = editorManager.replaceText(text.value, searchText.value, replaceText.value)
             Toast.makeText(context, "✅ Replaced all", Toast.LENGTH_SHORT).show()
         } else {
             Toast.makeText(context, "Text not found", Toast.LENGTH_SHORT).show()
@@ -115,29 +115,29 @@ fun EditorScreen(
     }
 
     // ===== UI =====
-    if (showVersions) {
+    if (showVersions.value) {
         VersionScreen(
-            fileName = currentFileName,
-            onBackClick = { showVersions = false }
+            fileName = currentFileName.value,
+            onBackClick = { showVersions.value = false }
         )
-    } else if (showSettings) {
+    } else if (showSettings.value) {
         SettingsScreen(
-            onBackClick = { showSettings = false },
+            onBackClick = { showSettings.value = false },
             onReadOnlyChange = { updatedValue ->
-                isReadOnly = updatedValue
+                isReadOnly.value = updatedValue
                 settingsManager.setReadOnlyMode(updatedValue)
             },
             onWordWrapChange = { updatedValue ->
-                isWordWrap = updatedValue
+                isWordWrap.value = updatedValue
                 settingsManager.setWordWrap(updatedValue)
             },
             onFontSizeChange = { updatedValue ->
-                fontSize = updatedValue
+                fontSize.intValue = updatedValue
                 settingsManager.setFontSize(updatedValue)
             },
-            initialReadOnly = isReadOnly,
-            initialWordWrap = isWordWrap,
-            initialFontSize = fontSize
+            initialReadOnly = isReadOnly.value,
+            initialWordWrap = isWordWrap.value,
+            initialFontSize = fontSize.intValue
         )
     } else {
         Scaffold(
@@ -147,20 +147,24 @@ fun EditorScreen(
                         Column {
                             Text("Text Editor", style = MaterialTheme.typography.titleMedium)
                             Text(
-                                text = currentFileName,
+                                text = currentFileName.value,
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     },
                     actions = {
-                        TextButton(onClick = { showSearch = !showSearch }) {
+                        TextButton(onClick = { showSearch.value = !showSearch.value }) {
                             Text("🔍", fontSize = 20.sp)
                         }
-                        TextButton(onClick = { performUndo() }) {
+                        TextButton(
+                            onClick = { performUndo() }
+                        ) {
                             Text("↩️", fontSize = 20.sp)
                         }
-                        TextButton(onClick = { performRedo() }) {
+                        TextButton(
+                            onClick = { performRedo() }
+                        ) {
                             Text("↪️", fontSize = 20.sp)
                         }
                     }
@@ -173,7 +177,7 @@ fun EditorScreen(
                     .padding(paddingValues)
             ) {
                 // ===== SEARCH BAR =====
-                if (showSearch) {
+                if (showSearch.value) {
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -185,15 +189,15 @@ fun EditorScreen(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 OutlinedTextField(
-                                    value = searchText,
-                                    onValueChange = { searchText = it },
+                                    value = searchText.value,
+                                    onValueChange = { searchText.value = it },
                                     label = { Text("Find") },
                                     modifier = Modifier.weight(1f),
                                     singleLine = true
                                 )
                                 OutlinedTextField(
-                                    value = replaceText,
-                                    onValueChange = { replaceText = it },
+                                    value = replaceText.value,
+                                    onValueChange = { replaceText.value = it },
                                     label = { Text("Replace") },
                                     modifier = Modifier.weight(1f),
                                     singleLine = true
@@ -212,9 +216,9 @@ fun EditorScreen(
                                 }
                                 Button(
                                     onClick = {
-                                        showSearch = false
-                                        searchText = ""
-                                        replaceText = ""
+                                        showSearch.value = false
+                                        searchText.value = ""
+                                        replaceText.value = ""
                                     },
                                     modifier = Modifier.weight(1f),
                                     colors = ButtonDefaults.buttonColors(
@@ -233,10 +237,10 @@ fun EditorScreen(
                 val horizontalScrollState = rememberScrollState()
 
                 BasicTextField(
-                    value = text,
+                    value = text.value,
                     onValueChange = { newText ->
-                        if (!isReadOnly) {
-                            text = newText
+                        if (!isReadOnly.value) {
+                            text.value = newText
                             editorManager.saveState(newText)
                         }
                     },
@@ -245,22 +249,22 @@ fun EditorScreen(
                         .fillMaxWidth()
                         .padding(16.dp)
                         .verticalScroll(verticalScrollState)
-                        .then(if (!isWordWrap) Modifier.horizontalScroll(horizontalScrollState) else Modifier),
-                    readOnly = isReadOnly,
+                        .then(if (!isWordWrap.value) Modifier.horizontalScroll(horizontalScrollState) else Modifier),
+                    readOnly = isReadOnly.value,
                     textStyle = TextStyle(
-                        fontSize = fontSize.sp,
+                        fontSize = fontSize.intValue.sp,
                         fontFamily = FontFamily.Monospace,
                         color = MaterialTheme.colorScheme.onSurface,
-                        lineHeight = (fontSize + 8).sp
+                        lineHeight = (fontSize.intValue + 8).sp
                     ),
-                    cursorBrush = SolidColor(if (isReadOnly) Color.Transparent else MaterialTheme.colorScheme.primary),
+                    cursorBrush = SolidColor(if (isReadOnly.value) Color.Transparent else MaterialTheme.colorScheme.primary),
                     decorationBox = { innerTextField ->
                         Box(modifier = Modifier.fillMaxSize()) {
-                            if (text.isEmpty()) {
+                            if (text.value.isEmpty()) {
                                 Text(
-                                    text = if (isReadOnly) "Read-only mode" else "📝 Start typing or press OPEN below...",
+                                    text = if (isReadOnly.value) "Read-only mode" else "📝 Start typing or press OPEN below...",
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    style = TextStyle(fontSize = fontSize.sp, fontFamily = FontFamily.Monospace)
+                                    style = TextStyle(fontSize = fontSize.intValue.sp, fontFamily = FontFamily.Monospace)
                                 )
                             }
                             innerTextField()
@@ -283,7 +287,9 @@ fun EditorScreen(
                             openFileLauncher.launch(arrayOf("*/*"))
                         },
                         modifier = Modifier.weight(1f).fillMaxHeight(),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF4CAF50)
+                        )
                     ) {
                         Text("📂 Open", fontSize = 14.sp)
                     }
@@ -291,9 +297,9 @@ fun EditorScreen(
                     // SAVE
                     Button(
                         onClick = {
-                            if (currentUri != null) {
-                                fileManager.writeFile(currentUri!!, text)
-                                dbHelper.insertFile(currentFileName, text)
+                            if (currentUri.value != null) {
+                                fileManager.writeFile(currentUri.value!!, text.value)
+                                dbHelper.insertFile(currentFileName.value, text.value)
                                 Toast.makeText(context, "💾 File saved!", Toast.LENGTH_LONG).show()
                             } else {
                                 Toast.makeText(context, "💾 Choose where to save...", Toast.LENGTH_SHORT).show()
@@ -301,25 +307,31 @@ fun EditorScreen(
                             }
                         },
                         modifier = Modifier.weight(1f).fillMaxHeight(),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2196F3))
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF2196F3)
+                        )
                     ) {
                         Text("💾 Save", fontSize = 14.sp)
                     }
 
                     // VERSIONS
                     Button(
-                        onClick = { showVersions = true },
+                        onClick = { showVersions.value = true },
                         modifier = Modifier.weight(1f).fillMaxHeight(),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF9800))
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFFFF9800)
+                        )
                     ) {
                         Text("📜 Versions", fontSize = 14.sp)
                     }
 
                     // SETTINGS
                     Button(
-                        onClick = { showSettings = true },
+                        onClick = { showSettings.value = true },
                         modifier = Modifier.weight(1f).fillMaxHeight(),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF9C27B0))
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF9C27B0)
+                        )
                     ) {
                         Text("⚙️ Settings", fontSize = 14.sp)
                     }
