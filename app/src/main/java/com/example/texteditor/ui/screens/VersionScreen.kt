@@ -1,6 +1,5 @@
 package com.example.texteditor.ui.screens
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -20,7 +19,7 @@ fun VersionScreen(
     fileName: String = "Untitled.txt",
     onBackClick: () -> Unit = {},
     onRollbackClick: (Int) -> Unit = {},
-    onViewDiffClick: (Int) -> Unit = {}
+    onViewDiffClick: (Int) -> Unit = {},
 ) {
     // Sample versions (you'll connect to database later)
     val versions = remember {

@@ -5,5 +5,5 @@ data class Version(
     val fileName: String,
     val versionNumber: Int,
     val diffText: String,
-    val date: Long = System.currentTimeMillis()
+    val date: Long = System.currentTimeMillis(),
 )

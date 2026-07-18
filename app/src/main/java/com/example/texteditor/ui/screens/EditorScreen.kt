@@ -5,22 +5,32 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.texteditor.database.DatabaseHelper
 import com.example.texteditor.editor.FileManager
+import com.example.texteditor.editor.TextEditorManager
+import com.example.texteditor.settings.AppSettingsManager
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun EditorScreen() {
+fun EditorScreen(
+    dbHelper: DatabaseHelper,
+    editorManager: TextEditorManager,
+    settingsManager: AppSettingsManager,
+) {
     val context = LocalContext.current
     val fileManager = remember { FileManager(context) }
 
@@ -36,9 +46,19 @@ fun EditorScreen() {
     var showVersions by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
 
-    // Undo/Redo
-    var undoStack by remember { mutableStateOf<List<String>>(listOf()) }
-    var redoStack by remember { mutableStateOf<List<String>>(listOf()) }
+    // Settings state
+    var isReadOnly by remember { mutableStateOf(settingsManager.isReadOnlyEnabled()) }
+    var isWordWrap by remember { mutableStateOf(settingsManager.isWordWrapEnabled()) }
+    var fontSize by remember { mutableIntStateOf(settingsManager.getFontSize()) }
+
+    // ===== REFRESH SETTINGS ON BACK =====
+    LaunchedEffect(showSettings) {
+        if (!showSettings) {
+            isReadOnly = settingsManager.isReadOnlyEnabled()
+            isWordWrap = settingsManager.isWordWrapEnabled()
+            fontSize = settingsManager.getFontSize()
+        }
+    }
 
     // ===== FILE PICKERS =====
     val openFileLauncher = rememberLauncherForActivityResult(
@@ -49,8 +69,6 @@ fun EditorScreen() {
             text = content
             currentFileName = fileManager.getFileName(it)
             currentUri = it
-            undoStack = emptyList()
-            redoStack = emptyList()
             Toast.makeText(context, "✅ Opened: $currentFileName", Toast.LENGTH_LONG).show()
         }
     }
@@ -62,34 +80,25 @@ fun EditorScreen() {
             fileManager.writeFile(it, text)
             currentFileName = fileManager.getFileName(it)
             currentUri = it
+            dbHelper.insertFile(currentFileName, text)
             Toast.makeText(context, "✅ Saved: $currentFileName", Toast.LENGTH_LONG).show()
         }
     }
 
     // ===== UNDO/REDO =====
-    fun saveStateForUndo() {
-        if (undoStack.isEmpty() || undoStack.last() != text) {
-            undoStack = undoStack + text
-            if (undoStack.size > 50) undoStack = undoStack.drop(1)
-            redoStack = emptyList()
-        }
-    }
-
     fun performUndo() {
-        if (undoStack.isNotEmpty()) {
-            redoStack = redoStack + text
-            text = undoStack.last()
-            undoStack = undoStack.dropLast(1)
+        val previousText = editorManager.undo(text)
+        if (previousText != null) {
+            text = previousText
         } else {
             Toast.makeText(context, "Nothing to undo", Toast.LENGTH_SHORT).show()
         }
     }
 
     fun performRedo() {
-        if (redoStack.isNotEmpty()) {
-            undoStack = undoStack + text
-            text = redoStack.last()
-            redoStack = redoStack.dropLast(1)
+        val nextText = editorManager.redo()
+        if (nextText != null) {
+            text = nextText
         } else {
             Toast.makeText(context, "Nothing to redo", Toast.LENGTH_SHORT).show()
         }
@@ -98,8 +107,7 @@ fun EditorScreen() {
     // ===== REPLACE =====
     fun performReplaceAll() {
         if (searchText.isNotEmpty() && text.contains(searchText)) {
-            saveStateForUndo()
-            text = text.replace(searchText, replaceText)
+            text = editorManager.replaceText(text, searchText, replaceText)
             Toast.makeText(context, "✅ Replaced all", Toast.LENGTH_SHORT).show()
         } else {
             Toast.makeText(context, "Text not found", Toast.LENGTH_SHORT).show()
@@ -114,7 +122,22 @@ fun EditorScreen() {
         )
     } else if (showSettings) {
         SettingsScreen(
-            onBackClick = { showSettings = false }
+            onBackClick = { showSettings = false },
+            onReadOnlyChange = { updatedValue ->
+                isReadOnly = updatedValue
+                settingsManager.setReadOnlyMode(updatedValue)
+            },
+            onWordWrapChange = { updatedValue ->
+                isWordWrap = updatedValue
+                settingsManager.setWordWrap(updatedValue)
+            },
+            onFontSizeChange = { updatedValue ->
+                fontSize = updatedValue
+                settingsManager.setFontSize(updatedValue)
+            },
+            initialReadOnly = isReadOnly,
+            initialWordWrap = isWordWrap,
+            initialFontSize = fontSize
         )
     } else {
         Scaffold(
@@ -134,16 +157,10 @@ fun EditorScreen() {
                         TextButton(onClick = { showSearch = !showSearch }) {
                             Text("🔍", fontSize = 20.sp)
                         }
-                        TextButton(
-                            onClick = { performUndo() },
-                            enabled = undoStack.isNotEmpty()
-                        ) {
+                        TextButton(onClick = { performUndo() }) {
                             Text("↩️", fontSize = 20.sp)
                         }
-                        TextButton(
-                            onClick = { performRedo() },
-                            enabled = redoStack.isNotEmpty()
-                        ) {
+                        TextButton(onClick = { performRedo() }) {
                             Text("↪️", fontSize = 20.sp)
                         }
                     }
@@ -212,29 +229,38 @@ fun EditorScreen() {
                 }
 
                 // ===== EDITOR =====
+                val verticalScrollState = rememberScrollState()
+                val horizontalScrollState = rememberScrollState()
+
                 BasicTextField(
                     value = text,
                     onValueChange = { newText ->
-                        saveStateForUndo()
-                        text = newText
+                        if (!isReadOnly) {
+                            text = newText
+                            editorManager.saveState(newText)
+                        }
                     },
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxWidth()
-                        .padding(16.dp),
+                        .padding(16.dp)
+                        .verticalScroll(verticalScrollState)
+                        .then(if (!isWordWrap) Modifier.horizontalScroll(horizontalScrollState) else Modifier),
+                    readOnly = isReadOnly,
                     textStyle = TextStyle(
-                        fontSize = 16.sp,
+                        fontSize = fontSize.sp,
                         fontFamily = FontFamily.Monospace,
-                        color = Color.Black,
-                        lineHeight = 24.sp
+                        color = MaterialTheme.colorScheme.onSurface,
+                        lineHeight = (fontSize + 8).sp
                     ),
+                    cursorBrush = SolidColor(if (isReadOnly) Color.Transparent else MaterialTheme.colorScheme.primary),
                     decorationBox = { innerTextField ->
                         Box(modifier = Modifier.fillMaxSize()) {
                             if (text.isEmpty()) {
                                 Text(
-                                    text = "📝 Start typing or press OPEN below...",
-                                    color = Color.Gray,
-                                    style = TextStyle(fontSize = 16.sp, fontFamily = FontFamily.Monospace)
+                                    text = if (isReadOnly) "Read-only mode" else "📝 Start typing or press OPEN below...",
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    style = TextStyle(fontSize = fontSize.sp, fontFamily = FontFamily.Monospace)
                                 )
                             }
                             innerTextField()
@@ -257,9 +283,7 @@ fun EditorScreen() {
                             openFileLauncher.launch(arrayOf("*/*"))
                         },
                         modifier = Modifier.weight(1f).fillMaxHeight(),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF4CAF50)
-                        )
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
                     ) {
                         Text("📂 Open", fontSize = 14.sp)
                     }
@@ -269,6 +293,7 @@ fun EditorScreen() {
                         onClick = {
                             if (currentUri != null) {
                                 fileManager.writeFile(currentUri!!, text)
+                                dbHelper.insertFile(currentFileName, text)
                                 Toast.makeText(context, "💾 File saved!", Toast.LENGTH_LONG).show()
                             } else {
                                 Toast.makeText(context, "💾 Choose where to save...", Toast.LENGTH_SHORT).show()
@@ -276,9 +301,7 @@ fun EditorScreen() {
                             }
                         },
                         modifier = Modifier.weight(1f).fillMaxHeight(),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF2196F3)
-                        )
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2196F3))
                     ) {
                         Text("💾 Save", fontSize = 14.sp)
                     }
@@ -287,9 +310,7 @@ fun EditorScreen() {
                     Button(
                         onClick = { showVersions = true },
                         modifier = Modifier.weight(1f).fillMaxHeight(),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFFFF9800)
-                        )
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF9800))
                     ) {
                         Text("📜 Versions", fontSize = 14.sp)
                     }
@@ -298,9 +319,7 @@ fun EditorScreen() {
                     Button(
                         onClick = { showSettings = true },
                         modifier = Modifier.weight(1f).fillMaxHeight(),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF9C27B0)
-                        )
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF9C27B0))
                     ) {
                         Text("⚙️ Settings", fontSize = 14.sp)
                     }

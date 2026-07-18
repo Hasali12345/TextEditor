@@ -15,11 +15,15 @@ import androidx.compose.ui.unit.sp
 fun SettingsScreen(
     onBackClick: () -> Unit = {},
     onReadOnlyChange: (Boolean) -> Unit = {},
-    onWordWrapChange: (Boolean) -> Unit = {}
+    onWordWrapChange: (Boolean) -> Unit = {},
+    onFontSizeChange: (Int) -> Unit = {},
+    initialReadOnly: Boolean = false,
+    initialWordWrap: Boolean = true,
+    initialFontSize: Int = 16
 ) {
-    var isReadOnly by remember { mutableStateOf(false) }
-    var isWordWrap by remember { mutableStateOf(true) }
-    var fontSize by remember { mutableStateOf(16) }
+    var isReadOnly by remember { mutableStateOf(value = initialReadOnly) }
+    var isWordWrap by remember { mutableStateOf(initialWordWrap) }
+    var fontSize by remember { mutableIntStateOf(initialFontSize) }
 
     Scaffold(
         topBar = {
@@ -159,7 +163,12 @@ fun SettingsScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Button(
-                            onClick = { if (fontSize > 10) fontSize -= 2 },
+                            onClick = {
+                                if (fontSize > 10) {
+                                    fontSize -= 2
+                                    onFontSizeChange(fontSize)
+                                }
+                            },
                             modifier = Modifier.weight(1f),
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = Color(0xFFFF5722)
@@ -168,7 +177,12 @@ fun SettingsScreen(
                             Text("A-", fontSize = 20.sp)
                         }
                         Button(
-                            onClick = { if (fontSize < 30) fontSize += 2 },
+                            onClick = {
+                                if (fontSize < 30) {
+                                    fontSize += 2
+                                    onFontSizeChange(fontSize)
+                                }
+                            },
                             modifier = Modifier.weight(1f),
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = Color(0xFF4CAF50)
