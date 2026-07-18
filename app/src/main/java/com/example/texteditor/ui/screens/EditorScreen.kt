@@ -19,10 +19,15 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.texteditor.database.AppDatabase
 import com.example.texteditor.database.DatabaseHelper
+import com.example.texteditor.database.VersionEntity
+import com.example.texteditor.editor.DraftManager
 import com.example.texteditor.editor.FileManager
 import com.example.texteditor.editor.TextEditorManager
 import com.example.texteditor.settings.AppSettingsManager
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -32,7 +37,13 @@ fun EditorScreen(
     settingsManager: AppSettingsManager,
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val fileManager = remember { FileManager(context) }
+    val draftManager = remember { DraftManager(context) }
+
+    val versionDao = remember {
+        AppDatabase.getDatabase(context).versionDao()
+    }
 
     // ===== STATE =====
     val text = remember { mutableStateOf("") }
@@ -45,11 +56,67 @@ fun EditorScreen(
     // Navigation state
     val showVersions = remember { mutableStateOf(false) }
     val showSettings = remember { mutableStateOf(false) }
+    val showDiff = remember { mutableStateOf(false) }
+    val diffCurrentText = remember { mutableStateOf("") }
+    val diffVersionText = remember { mutableStateOf("") }
 
     // Settings state
     val isReadOnly = remember { mutableStateOf(settingsManager.isReadOnlyEnabled()) }
     val isWordWrap = remember { mutableStateOf(settingsManager.isWordWrapEnabled()) }
     val fontSize = remember { mutableIntStateOf(settingsManager.getFontSize()) }
+
+    // Auto Save
+    val autoSaveEnabled = remember { mutableStateOf(settingsManager.isAutoSaveEnabled()) }
+    val autoSaveDelay = remember { mutableIntStateOf(2000) }
+
+    // Crash Recovery
+    val showRecoveryDialog = remember { mutableStateOf(false) }
+    var draftText by remember { mutableStateOf("") }
+    var draftFileName by remember { mutableStateOf("") }
+
+    // ===== CHECK FOR CRASH RECOVERY =====
+    LaunchedEffect(Unit) {
+        if (draftManager.hasDraft()) {
+            val (text, fileName) = draftManager.getDraft()
+            if (text != null && fileName != null) {
+                draftText = text
+                draftFileName = fileName
+                showRecoveryDialog.value = true
+            }
+        }
+    }
+
+    // ===== AUTO SAVE =====
+    LaunchedEffect(text.value) {
+        if (autoSaveEnabled.value && currentUri.value != null && text.value.isNotEmpty()) {
+            delay(autoSaveDelay.intValue.toLong())
+            try {
+                fileManager.writeFile(currentUri.value!!, text.value)
+                dbHelper.insertFile(currentFileName.value, text.value)
+
+                scope.launch {
+                    val count = versionDao.getVersionCount(currentFileName.value)
+                    versionDao.insertVersion(
+                        VersionEntity(
+                            fileName = currentFileName.value,
+                            versionNumber = count + 1,
+                            diffText = text.value,
+                            date = System.currentTimeMillis()
+                        )
+                    )
+                }
+            } catch (e: Exception) {
+                // Silent fail for auto save
+            }
+        }
+    }
+
+    // ===== SAVE DRAFT FOR CRASH RECOVERY =====
+    LaunchedEffect(text.value) {
+        if (text.value.isNotEmpty() && currentFileName.value.isNotEmpty()) {
+            draftManager.saveDraft(text.value, currentFileName.value)
+        }
+    }
 
     // ===== REFRESH SETTINGS ON BACK =====
     LaunchedEffect(showSettings.value) {
@@ -57,7 +124,46 @@ fun EditorScreen(
             isReadOnly.value = settingsManager.isReadOnlyEnabled()
             isWordWrap.value = settingsManager.isWordWrapEnabled()
             fontSize.intValue = settingsManager.getFontSize()
+            autoSaveEnabled.value = settingsManager.isAutoSaveEnabled()
         }
+    }
+
+    // ===== RECOVERY DIALOG =====
+    if (showRecoveryDialog.value) {
+        AlertDialog(
+            onDismissRequest = {
+                draftManager.clearDraft()
+                showRecoveryDialog.value = false
+            },
+            title = { Text("Recover Unsaved Document?") },
+            text = {
+                Text("The app previously closed unexpectedly. Would you like to recover your unsaved document?")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        text.value = draftText
+                        currentFileName.value = draftFileName
+                        draftManager.clearDraft()
+                        showRecoveryDialog.value = false
+                        Toast.makeText(context, "✅ Document recovered", Toast.LENGTH_LONG).show()
+                    }
+                ) {
+                    Text("Recover")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        draftManager.clearDraft()
+                        showRecoveryDialog.value = false
+                        Toast.makeText(context, "Draft discarded", Toast.LENGTH_SHORT).show()
+                    }
+                ) {
+                    Text("Discard")
+                }
+            }
+        )
     }
 
     // ===== FILE PICKERS =====
@@ -69,6 +175,7 @@ fun EditorScreen(
             text.value = content
             currentFileName.value = fileManager.getFileName(it)
             currentUri.value = it
+            draftManager.clearDraft()
             Toast.makeText(context, "✅ Opened: ${currentFileName.value}", Toast.LENGTH_LONG).show()
         }
     }
@@ -81,6 +188,20 @@ fun EditorScreen(
             currentFileName.value = fileManager.getFileName(it)
             currentUri.value = it
             dbHelper.insertFile(currentFileName.value, text.value)
+            draftManager.clearDraft()
+
+            scope.launch {
+                val count = versionDao.getVersionCount(currentFileName.value)
+                versionDao.insertVersion(
+                    VersionEntity(
+                        fileName = currentFileName.value,
+                        versionNumber = count + 1,
+                        diffText = text.value,
+                        date = System.currentTimeMillis()
+                    )
+                )
+            }
+
             Toast.makeText(context, "✅ Saved: ${currentFileName.value}", Toast.LENGTH_LONG).show()
         }
     }
@@ -118,7 +239,23 @@ fun EditorScreen(
     if (showVersions.value) {
         VersionScreen(
             fileName = currentFileName.value,
-            onBackClick = { showVersions.value = false }
+            onBackClick = { showVersions.value = false },
+            onRollbackClick = { versionText ->
+                text.value = versionText
+                editorManager.saveState(versionText)
+                Toast.makeText(context, "✅ Version restored", Toast.LENGTH_LONG).show()
+            },
+            onViewDiffClick = { current, version ->
+                diffCurrentText.value = current
+                diffVersionText.value = version
+                showDiff.value = true
+            }
+        )
+    } else if (showDiff.value) {
+        DiffScreen(
+            currentText = diffCurrentText.value,
+            versionText = diffVersionText.value,
+            onBackClick = { showDiff.value = false }
         )
     } else if (showSettings.value) {
         SettingsScreen(
@@ -135,9 +272,14 @@ fun EditorScreen(
                 fontSize.intValue = updatedValue
                 settingsManager.setFontSize(updatedValue)
             },
+            onAutoSaveChange = { updatedValue ->
+                autoSaveEnabled.value = updatedValue
+                settingsManager.setAutoSave(updatedValue)
+            },
             initialReadOnly = isReadOnly.value,
             initialWordWrap = isWordWrap.value,
-            initialFontSize = fontSize.intValue
+            initialFontSize = fontSize.intValue,
+            initialAutoSave = autoSaveEnabled.value
         )
     } else {
         Scaffold(
@@ -300,6 +442,20 @@ fun EditorScreen(
                             if (currentUri.value != null) {
                                 fileManager.writeFile(currentUri.value!!, text.value)
                                 dbHelper.insertFile(currentFileName.value, text.value)
+                                draftManager.clearDraft()
+
+                                scope.launch {
+                                    val count = versionDao.getVersionCount(currentFileName.value)
+                                    versionDao.insertVersion(
+                                        VersionEntity(
+                                            fileName = currentFileName.value,
+                                            versionNumber = count + 1,
+                                            diffText = text.value,
+                                            date = System.currentTimeMillis()
+                                        )
+                                    )
+                                }
+
                                 Toast.makeText(context, "💾 File saved!", Toast.LENGTH_LONG).show()
                             } else {
                                 Toast.makeText(context, "💾 Choose where to save...", Toast.LENGTH_SHORT).show()

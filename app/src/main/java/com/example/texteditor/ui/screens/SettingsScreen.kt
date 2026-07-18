@@ -5,7 +5,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -17,29 +16,24 @@ fun SettingsScreen(
     onReadOnlyChange: (Boolean) -> Unit = {},
     onWordWrapChange: (Boolean) -> Unit = {},
     onFontSizeChange: (Int) -> Unit = {},
+    onAutoSaveChange: (Boolean) -> Unit = {},
     initialReadOnly: Boolean = false,
     initialWordWrap: Boolean = true,
-    initialFontSize: Int = 16
+    initialFontSize: Int = 16,
+    initialAutoSave: Boolean = true,
 ) {
-    var isReadOnly by remember { mutableStateOf(value = initialReadOnly) }
-    var isWordWrap by remember { mutableStateOf(initialWordWrap) }
+    var readOnly by remember { mutableStateOf(initialReadOnly) }
+    var wordWrap by remember { mutableStateOf(initialWordWrap) }
     var fontSize by remember { mutableIntStateOf(initialFontSize) }
+    var autoSave by remember { mutableStateOf(initialAutoSave) }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = {
-                    Text(
-                        "⚙️ Settings",
-                        style = MaterialTheme.typography.titleLarge
-                    )
-                },
+                title = { Text("Settings", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
-                    TextButton(
-                        onClick = onBackClick,
-                        modifier = Modifier.padding(start = 8.dp)
-                    ) {
-                        Text("⬅ Back", fontSize = 16.sp)
+                    IconButton(onClick = onBackClick) {
+                        Text("←", fontSize = 24.sp)
                     }
                 }
             )
@@ -49,13 +43,12 @@ fun SettingsScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .padding(16.dp)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // ===== READ ONLY =====
+            // Read Only
             Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp),
+                modifier = Modifier.fillMaxWidth(),
                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
             ) {
                 Row(
@@ -66,38 +59,26 @@ fun SettingsScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column {
+                        Text("Read Only Mode", fontWeight = FontWeight.Medium)
                         Text(
-                            text = "🔒 Read Only Mode",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = "Prevent accidental edits to files",
+                            "Prevents editing the document",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                     Switch(
-                        checked = isReadOnly,
+                        checked = readOnly,
                         onCheckedChange = {
-                            isReadOnly = it
+                            readOnly = it
                             onReadOnlyChange(it)
-                        },
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = Color(0xFF4CAF50),
-                            checkedTrackColor = Color(0xFF81C784)
-                        )
+                        }
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // ===== WORD WRAP =====
+            // Word Wrap
             Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp),
+                modifier = Modifier.fillMaxWidth(),
                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
             ) {
                 Row(
@@ -108,38 +89,56 @@ fun SettingsScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column {
+                        Text("Word Wrap", fontWeight = FontWeight.Medium)
                         Text(
-                            text = "📝 Word Wrap",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = "Wrap long lines automatically",
+                            "Wrap text to next line",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                     Switch(
-                        checked = isWordWrap,
+                        checked = wordWrap,
                         onCheckedChange = {
-                            isWordWrap = it
+                            wordWrap = it
                             onWordWrapChange(it)
-                        },
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = Color(0xFF2196F3),
-                            checkedTrackColor = Color(0xFF64B5F6)
-                        )
+                        }
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // ===== FONT SIZE =====
+            // Auto Save
             Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp),
+                modifier = Modifier.fillMaxWidth(),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text("Auto Save", fontWeight = FontWeight.Medium)
+                        Text(
+                            "Automatically save document",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = autoSave,
+                        onCheckedChange = {
+                            autoSave = it
+                            onAutoSaveChange(it)
+                        }
+                    )
+                }
+            }
+
+            // Font Size
+            Card(
+                modifier = Modifier.fillMaxWidth(),
                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
             ) {
                 Column(
@@ -147,84 +146,40 @@ fun SettingsScreen(
                         .fillMaxWidth()
                         .padding(16.dp)
                 ) {
+                    Text("Font Size", fontWeight = FontWeight.Medium)
                     Text(
-                        text = "📐 Font Size: ${fontSize}sp",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = "Adjust text size in editor",
+                        "Current size: ${fontSize}sp",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Button(
                             onClick = {
-                                if (fontSize > 10) {
+                                if (fontSize > 8) {
                                     fontSize -= 2
                                     onFontSizeChange(fontSize)
                                 }
                             },
-                            modifier = Modifier.weight(1f),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFFFF5722)
-                            )
+                            modifier = Modifier.weight(1f)
                         ) {
-                            Text("A-", fontSize = 20.sp)
+                            Text("−")
                         }
                         Button(
                             onClick = {
-                                if (fontSize < 30) {
+                                if (fontSize < 40) {
                                     fontSize += 2
                                     onFontSizeChange(fontSize)
                                 }
                             },
-                            modifier = Modifier.weight(1f),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFF4CAF50)
-                            )
+                            modifier = Modifier.weight(1f)
                         ) {
-                            Text("A+", fontSize = 20.sp)
+                            Text("+")
                         }
                     }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // ===== APP INFO =====
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer
-                )
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp)
-                ) {
-                    Text(
-                        text = "📱 Text Editor v1.0",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = "IS2205 Mobile Application Design and Development",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = "Mini-Project - Member 2",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
                 }
             }
         }
