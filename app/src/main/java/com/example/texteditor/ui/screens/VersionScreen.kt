@@ -24,7 +24,7 @@ import java.util.*
 fun VersionScreen(
     fileName: String = "Untitled.txt",
     onBackClick: () -> Unit = {},
-h    onRollbackClick: (String) -> Unit = { _ -> },
+    onRollbackClick: (String) -> Unit = { _ -> },
     onViewDiffClick: (String, String) -> Unit = { _, _ -> },
 ) {
     val context = LocalContext.current
@@ -59,7 +59,7 @@ h    onRollbackClick: (String) -> Unit = { _ -> },
                         Text(
                             text = fileName,
                             style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 },
