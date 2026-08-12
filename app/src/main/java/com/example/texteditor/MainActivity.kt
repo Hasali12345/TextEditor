@@ -8,6 +8,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 
+import com.example.texteditor.database.DatabaseHelper
+import com.example.texteditor.editor.TextEditorManager
+import com.example.texteditor.settings.AppSettingsManager
 import com.example.texteditor.ui.screens.EditorScreen
 import com.example.texteditor.ui.screens.HomeScreen
 import com.example.texteditor.ui.theme.TextEditorTheme
@@ -16,6 +19,10 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        val dbHelper = DatabaseHelper(this)
+        val editorManager = TextEditorManager()
+        val settingsManager = AppSettingsManager(this)
 
         setContent {
             TextEditorTheme {
@@ -26,7 +33,11 @@ class MainActivity : ComponentActivity() {
 
                 if (showEditor) {
 
-                    EditorScreen()
+                    EditorScreen(
+                        dbHelper = dbHelper,
+                        editorManager = editorManager,
+                        settingsManager = settingsManager
+                    )
 
                 } else {
 
