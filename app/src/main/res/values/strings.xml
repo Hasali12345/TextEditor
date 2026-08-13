@@ -1,0 +1,17 @@
+<resources>
+    <string name="app_name">Text Editor</string>
+    <string name="undo">Undo</string>
+    <string name="redo">Redo</string>
+    <string name="search_hint">Search text&#8230;</string>
+    <string name="replace_hint">Replace text&#8230;</string>
+    <string name="replace">Replace</string>
+    <string name="save">Save</string>
+    <string name="editor_hint">Start typing your document here&#8230;</string>
+    <string name="untitled_document">Untitled Document</string>
+    <string name="doc_saved">Document Saved!</string>
+    <string name="doc_updated">Document Updated!</string>
+    <string name="nothing_to_undo">Nothing to Undo</string>
+    <string name="nothing_to_redo">Nothing to Redo</string>
+    <string name="text_replaced">Text Replaced!</string>
+    <string name="enter_search_text">Enter search text first</string>
+</resources>
